@@ -1,0 +1,107 @@
+#!/bin/bash
+# Activate your Python environment first (adjust to your setup):
+source ~/anaconda3/etc/profile.d/conda.sh 2>/dev/null || true
+conda activate orthrus  # the environment created from requirements.txt
+
+learning_rates=(0.0015 0.00015 0.0001)
+lr_fs=(0.001)
+mask_rates=(0.1 0.3 0.5)
+layers=(2)
+seeds=(1)
+epochs=(5)
+num_hiddens=(64 128 256)
+replace_rates=(0.0)
+weight_decays=(0.01 1e-3 1e-4 1e-5)
+num_heads=(2 4 8)
+max_epoch_fs=(50)
+drop_edge_rates=(0.0)
+in_drops=(0.2)
+attn_drops=(0.1)
+alpha_ls=(3)
+dataset="CADETS_E3"
+data_path="cadets_e3.pt"
+ground_truth_path="../Ground_Truth/ground_truth_cadet_v2.pt"
+counter=0
+
+for seed in "${seeds[@]}"
+do
+  for epoch in "${epochs[@]}"
+  do
+    for layer in "${layers[@]}"
+    do
+      for lr_f in "${lr_fs[@]}"
+      do
+        for lr in "${learning_rates[@]}"
+        do
+          for mask_rate in "${mask_rates[@]}"
+          do
+            for replace_rate in "${replace_rates[@]}"
+            do
+              for num_hidden in "${num_hiddens[@]}"
+              do
+                for weight_decay in "${weight_decays[@]}"
+                do
+                  for num_head in "${num_heads[@]}"
+                  do
+                    for max_epoch_f in "${max_epoch_fs[@]}"
+                    do
+                      for drop_edge_rate in "${drop_edge_rates[@]}"
+                      do
+                        for in_drop in "${in_drops[@]}"
+                        do
+                          for attn_drop in "${attn_drops[@]}"
+                          do
+                            for alpha_l in "${alpha_ls[@]}"
+                            do
+                              CUDA_VISIBLE_DEVICES=1 python main_transductive.py \
+                                --device 0 \
+                                --dataset $dataset \
+                                --mask_rate $mask_rate \
+                                --encoder "gatedge" \
+                                --decoder "gat" \
+                                --in_drop $in_drop \
+                                --attn_drop $attn_drop \
+                                --num_layers $layer \
+                                --num_hidden $num_hidden \
+                                --num_heads $num_head \
+                                --max_epoch $epoch \
+                                --max_epoch_f $max_epoch_f \
+                                --lr $lr \
+                                --weight_decay $weight_decay \
+                                --lr_f $lr_f \
+                                --weight_decay_f 1e-4 \
+                                --activation prelu \
+                                --optimizer adam \
+                                --drop_edge_rate "$drop_edge_rate" \
+                                --loss_fn "sce" \
+                                --seeds $seed \
+                                --replace_rate $replace_rate \
+                                --alpha_l $alpha_l \
+                                --linear_prob \
+                                --scheduler \
+                                --use_cfg \
+                                --data_path $data_path \
+                                --ground_truth_path $ground_truth_path \
+                                --raw_data_dir ../raw_data \
+                                >> cadets_e3_sweep.log 2>&1
+
+                              ((counter++))
+                              if [ $((counter % 1)) -eq 0 ]; then
+                                wait
+                              fi
+
+                            done
+                          done
+                        done
+                      done
+                    done
+                  done
+                done
+              done
+            done
+          done
+        done
+      done
+    done
+  done
+done

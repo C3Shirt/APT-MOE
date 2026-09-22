@@ -1,0 +1,41 @@
+seed: 1
+device: cpu
+
+data:
+  dataset_name: synthetic
+  data_path: ""
+  raw_data_dir: "F:/phd/data/APT/DARPA"
+  raw_darpa_root: "F:/phd/data/APT/DARPA"
+  ground_truth_path: ""
+  allow_synthetic: true
+  max_graphs_per_split: 1
+
+model:
+  hidden_dim: 16
+  num_layers: 1
+  dropout: 0.0
+
+training:
+  epochs: 2
+  lr: 0.01
+  weight_decay: 0.0
+  patience: 2
+  mask_rate: 0.5
+  mask_folds: 3
+  edge_train_sample_size: 32
+  lambda_cos: 0.5
+  lambda_mse: 0.5
+  experts: ["node", "edge", "attr"]
+
+evaluation:
+  k_values: [2, 4, 6]
+  mask_folds: 3
+
+calibration:
+  split: val
+  use_only_benign: true
+
+output:
+  output_dir: outputs/three_expert_smoke
+  checkpoint_dir: outputs/three_expert_smoke/checkpoints
+  scores_csv: outputs/three_expert_smoke/three_expert_scores.csv

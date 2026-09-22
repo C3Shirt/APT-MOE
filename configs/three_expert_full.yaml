@@ -1,0 +1,47 @@
+seed: 1
+device: auto
+
+data:
+  dataset_name: CADETS_E3
+  # Fill this after local ProvFusion-format merged data is available.
+  # Example: F:/phd/project/apt-project/relative_code/ProvFusion_Private-main/cadets_e3.pt
+  data_path: ""
+  # This is the local DARPA raw JSON root provided by the user. It is not a
+  # ProvFusion merged-data directory, and this baseline will not download data.
+  raw_darpa_root: "F:/phd/data/APT/DARPA"
+  # ProvFusion preprocess expects prebuilt raw_data/{DATASET}/train|val|test
+  # embedding graphs, not the DARPA JSON root above.
+  raw_data_dir: "../raw_data"
+  ground_truth_path: "gt_canonical/CADETS_E3_orig_ground_truth_nids.pt"
+  allow_synthetic: false
+  max_graphs_per_split: null
+
+model:
+  hidden_dim: 64
+  num_layers: 2
+  dropout: 0.1
+
+training:
+  epochs: 20
+  lr: 0.001
+  weight_decay: 0.0
+  patience: 5
+  mask_rate: 0.3
+  mask_folds: 8
+  edge_train_sample_size: 20000
+  lambda_cos: 0.5
+  lambda_mse: 0.5
+  experts: ["node", "edge", "attr"]
+
+evaluation:
+  k_values: [100, 500, 1000]
+  mask_folds: 8
+
+calibration:
+  split: val
+  use_only_benign: true
+
+output:
+  output_dir: outputs/three_expert_full
+  checkpoint_dir: outputs/three_expert_full/checkpoints
+  scores_csv: outputs/three_expert_full/three_expert_scores.csv

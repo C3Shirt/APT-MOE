@@ -1,0 +1,61 @@
+# Data files (too large for git; loaded via --data_path arg)
+*.pt
+*.pth
+*.pkl
+*.npy
+*.npz
+# ... except the tiny per-dataset attack->nids maps required by evaluation (~1 KB each)
+!*_attack_to_nids.pt
+# ... and the canonical ground-truth artifacts built from the UUID CSVs (~1 KB each)
+!gt_canonical/*.pt
+
+# Intermediate results directories
+outputs/
+save_middle_results_optc/
+saved_middle_result*/
+
+# Data-preparation intermediate artifacts (nx graphs have no extension;
+# word2vec models / *.TemporalData.simple don't match the patterns above)
+data_preparation/artifacts/
+
+# Vendored upstream PIDSMaker/Orthrus repo (12GB, has its own .git;
+# data_preparation/ is the migrated, self-contained copy actually used)
+orthrus_for_data_prepration/
+
+# Logs
+*.log
+!Ground_Truth_csv/**/*_AUDIT.log
+logs*/
+optc_log/
+
+# Python
+__pycache__/
+.pytest_cache/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environments
+.env
+.venv/
+venv/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+
+# macOS
+.DS_Store
+
+# Server-specific real config (never commit)
+data_preparation/local_config.json
+
+# Release binaries are distributed via Hugging Face, not git
+release_assets/
