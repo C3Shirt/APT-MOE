@@ -1,0 +1,49 @@
+seed: 1
+device: cpu
+
+data:
+  dataset_name: synthetic
+  data_path: ""
+  raw_data_dir: "F:/phd/data/APT/DARPA"
+  raw_darpa_root: "F:/phd/data/APT/DARPA"
+  ground_truth_path: ""
+  allow_synthetic: true
+  max_graphs_per_split: 1
+
+model:
+  hidden_dim: 16
+  expert_dim: 8
+  num_layers: 1
+  num_heads: 2
+  dropout: 0.0
+
+training:
+  epochs: 2
+  lr: 0.01
+  weight_decay: 0.0
+  patience: 2
+  mask_rate: 0.5
+
+evaluation:
+  k_values: [2, 4, 6]
+  mask_folds: 3
+
+moe:
+  alpha_entropy: 0.01
+  beta_final: 1.0
+  eta_balance: 0.0
+  energy_ema_decay: 0.99
+  energy_eps: 0.000001
+  causal_smoothmax_tau: 5.0
+  threshold_quantile: 0.999
+
+loss_weights:
+  semantic: 1.0
+  graph: 1.0
+  normal: 1.0
+  causal: 1.0
+
+output:
+  output_dir: outputs/four_expert_smoke
+  checkpoint_dir: outputs/four_expert_smoke/checkpoints
+  scores_csv: outputs/four_expert_smoke/four_expert_scores.csv

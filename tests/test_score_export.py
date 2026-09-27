@@ -16,9 +16,10 @@ def test_score_export_schema(tmp_path):
             "timestamp": "",
             "split": "test",
             "label": 0,
-            "node_raw": 0.1,
-            "edge_raw": 0.2,
-            "attr_raw": 0.3,
+            "semantic_raw": 0.1,
+            "graph_raw": 0.2,
+            "normal_raw": 0.3,
+            "causal_raw": 0.4,
             "detection_granularity": "node",
         },
         {
@@ -30,16 +31,18 @@ def test_score_export_schema(tmp_path):
             "timestamp": "",
             "split": "test",
             "label": 1,
-            "node_raw": 0.9,
-            "edge_raw": 0.4,
-            "attr_raw": 0.8,
+            "semantic_raw": 0.9,
+            "graph_raw": 0.4,
+            "normal_raw": 0.8,
+            "causal_raw": 0.7,
             "detection_granularity": "node",
         },
     ]
     calibrators = {
-        "node": EmpiricalCDFCalibrator.fit([0.0, 0.5]),
-        "edge": EmpiricalCDFCalibrator.fit([0.1, 0.3]),
-        "attr": EmpiricalCDFCalibrator.fit([0.2, 0.4]),
+        "semantic": EmpiricalCDFCalibrator.fit([0.0, 0.5]),
+        "graph": EmpiricalCDFCalibrator.fit([0.1, 0.3]),
+        "normal": EmpiricalCDFCalibrator.fit([0.2, 0.4]),
+        "causal": EmpiricalCDFCalibrator.fit([0.3, 0.5]),
     }
     rows = apply_calibrators(rows, calibrators)
     out = tmp_path / "scores.csv"
@@ -49,7 +52,8 @@ def test_score_export_schema(tmp_path):
         assert reader.fieldnames == CSV_COLUMNS
         exported = list(reader)
     assert len(exported) == 2
-    assert exported[0]["node_event_raw"] == exported[0]["node_src_raw"]
+    assert exported[0]["semantic_raw"] == "0.1"
+    assert exported[1]["causal_raw"] == "0.7"
 
 
 def test_complementarity_report_contains_required_sections():
@@ -59,9 +63,10 @@ def test_complementarity_report_contains_required_sections():
             {
                 "sample_id": i,
                 "label": int(i in {1, 4}),
-                "node_calibrated": float(i),
-                "edge_calibrated": float(5 - i),
-                "attr_calibrated": float(i % 3),
+                "semantic_calibrated": float(i),
+                "graph_calibrated": float(5 - i),
+                "normal_calibrated": float(i % 3),
+                "causal_calibrated": float((i + 1) % 4),
             }
         )
     report = complementarity_report(rows, [2, 100])
@@ -70,3 +75,4 @@ def test_complementarity_report_contains_required_sections():
     assert "spearman" in report
     assert "union_hits" in report
     assert "single_expert_examples" in report
+    assert set(report["experts"]) == {"semantic", "graph", "normal", "causal"}

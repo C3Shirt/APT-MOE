@@ -28,7 +28,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "model": {
         "hidden_dim": 64,
+        "expert_dim": 64,
         "num_layers": 2,
+        "num_heads": 2,
         "dropout": 0.1,
     },
     "training": {
@@ -37,24 +39,26 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "weight_decay": 0.0,
         "patience": 5,
         "mask_rate": 0.3,
-        "mask_folds": 8,
-        "edge_train_sample_size": 20000,
         "lambda_cos": 0.5,
         "lambda_mse": 0.5,
-        "experts": ["node", "edge", "attr"],
     },
     "evaluation": {
         "k_values": [100, 500, 1000],
         "mask_folds": 8,
     },
-    "calibration": {
-        "split": "val",
-        "use_only_benign": True,
+    "moe": {
+        "alpha_entropy": 0.01,
+        "beta_final": 1.0,
+        "eta_balance": 0.0,
+        "energy_ema_decay": 0.99,
+        "energy_eps": 1e-6,
+        "causal_smoothmax_tau": 5.0,
+        "threshold_quantile": 0.999,
     },
     "output": {
         "output_dir": "outputs",
         "checkpoint_dir": "outputs/checkpoints",
-        "scores_csv": "outputs/three_expert_scores.csv",
+        "scores_csv": "outputs/four_expert_scores.csv",
     },
 }
 

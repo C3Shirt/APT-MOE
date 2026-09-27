@@ -1,0 +1,51 @@
+seed: 1
+device: auto
+
+data:
+  dataset_name: CADETS_E3
+  # Fill this with a local ProvFusion merged graph, for example:
+  # E:/provFusion/release_assets/cadets_e3.pt
+  data_path: ""
+  raw_darpa_root: "F:/phd/data/APT/DARPA"
+  raw_data_dir: "../raw_data"
+  ground_truth_path: "gt_canonical/CADETS_E3_orig_ground_truth_nids.pt"
+  allow_synthetic: false
+  max_graphs_per_split: null
+
+model:
+  hidden_dim: 64
+  expert_dim: 64
+  num_layers: 2
+  num_heads: 2
+  dropout: 0.1
+
+training:
+  epochs: 20
+  lr: 0.001
+  weight_decay: 0.0
+  patience: 5
+  mask_rate: 0.3
+
+evaluation:
+  k_values: [100, 500, 1000]
+  mask_folds: 8
+
+moe:
+  alpha_entropy: 0.01
+  beta_final: 1.0
+  eta_balance: 0.0
+  energy_ema_decay: 0.99
+  energy_eps: 0.000001
+  causal_smoothmax_tau: 5.0
+  threshold_quantile: 0.999
+
+loss_weights:
+  semantic: 1.0
+  graph: 1.0
+  normal: 1.0
+  causal: 1.0
+
+output:
+  output_dir: outputs/four_expert_full
+  checkpoint_dir: outputs/four_expert_full/checkpoints
+  scores_csv: outputs/four_expert_full/four_expert_scores.csv

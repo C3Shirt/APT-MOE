@@ -2,53 +2,101 @@ import torch
 import pytest
 
 
-def test_three_experts_forward_backward_on_synthetic_fixture():
-    dgl = pytest.importorskip("dgl")  # noqa: F841
+def test_four_experts_forward_backward_on_synthetic_fixture():
+    pytest.importorskip("dgl")
 
     from apt_moe.data.provfusion_adapter import (
         build_synthetic_fixture,
         edge_targets,
+        edge_type_features,
         node_full_features,
         node_type_one_hot,
         non_self_edge_mask,
     )
-    from apt_moe.models import AttributeExpert, EdgeTypeExpert, NodeTypeExpert
+    from apt_moe.models import CausalityExpert, GraphExpert, NormalExpert, SemanticExpert
 
     graphs, _, num_features, edge_features, _, _ = build_synthetic_fixture()
     graph = graphs["train"][0]
     node_type = node_type_one_hot(graph)
     full = node_full_features(graph)
-    attrs = full[:, 3:]
-    mask_nodes = torch.tensor([0, 2, 4])
-
-    node_model = NodeTypeExpert(num_node_types=3, hidden_dim=8, num_layers=1, dropout=0.0)
-    node_loss = node_model.loss(graph, node_type, node_type.argmax(dim=1), mask_nodes)
-    assert torch.isfinite(node_loss)
-    node_loss.backward()
-
-    attr_model = AttributeExpert(node_type_dim=3, attr_dim=attrs.shape[1], hidden_dim=8, num_layers=1, dropout=0.0)
-    attr_loss = attr_model.loss(graph, node_type, attrs, mask_nodes)
-    assert torch.isfinite(attr_loss)
-    attr_loss.backward()
-
-    src, dst = graph.edges()
-    all_edges = torch.stack([src, dst], dim=1)
+    semantic = full[:, 3:]
+    edge_feat = edge_type_features(graph, edge_features)
     edge_idx = torch.nonzero(non_self_edge_mask(graph), as_tuple=False).view(-1)
-    edge_model = EdgeTypeExpert(
+    targets = edge_targets(graph, True)
+    mask_nodes = torch.tensor([0, 2, 4])
+    expert_dim = 6
+
+    semantic_model = SemanticExpert(semantic_dim=semantic.shape[1], hidden_dim=8, expert_dim=expert_dim, dropout=0.0)
+    semantic_out = semantic_model(semantic, target_mask=mask_nodes)
+    assert semantic_out.residual.shape == (graph.num_nodes(), expert_dim)
+    assert semantic_out.score.shape == (graph.num_nodes(),)
+    assert torch.isfinite(semantic_out.loss)
+    semantic_out.loss.backward()
+
+    normal_model = NormalExpert(input_dim=num_features, hidden_dim=8, expert_dim=expert_dim, dropout=0.0)
+    normal_model.set_prototype(full.mean(dim=0))
+    normal_out = normal_model(full)
+    assert normal_out.residual.shape == (graph.num_nodes(), expert_dim)
+    assert normal_out.score.shape == (graph.num_nodes(),)
+    assert torch.isfinite(normal_out.loss)
+    normal_out.loss.backward()
+
+    graph_model = GraphExpert(
+        node_type_dim=3,
+        edge_type_dim=edge_features,
+        hidden_dim=8,
+        expert_dim=expert_dim,
+        num_layers=1,
+        num_heads=2,
+        dropout=0.0,
+    )
+    graph_out = graph_model(graph, node_type, edge_feat, mask_nodes=mask_nodes)
+    assert graph_out.residual.shape == (graph.num_nodes(), expert_dim)
+    assert graph_out.score.shape == (graph.num_nodes(),)
+    assert torch.isfinite(graph_out.loss)
+    graph_out.loss.backward()
+
+    causal_model = CausalityExpert(
         node_feat_dim=num_features,
         edge_type_dim=edge_features,
         hidden_dim=8,
+        expert_dim=expert_dim,
         num_layers=1,
+        num_heads=2,
         dropout=0.0,
-        multilabel=False,
+        multilabel=True,
     )
-    edge_loss = edge_model.loss(graph, full, all_edges[edge_idx], edge_targets(graph, False)[edge_idx])
-    assert torch.isfinite(edge_loss)
-    edge_loss.backward()
+    causal_out = causal_model(graph, full, targets, edge_feat, edge_indices=edge_idx)
+    assert causal_out.residual.shape == (graph.num_nodes(), expert_dim)
+    assert causal_out.score.shape == (graph.num_nodes(),)
+    assert torch.isfinite(causal_out.loss)
+    causal_out.loss.backward()
 
-    node_scores = node_model.node_scores(graph, node_type, node_type.argmax(dim=1), mask_folds=3)
-    attr_scores = attr_model.node_scores(graph, node_type, attrs, mask_folds=3)
-    edge_scores = edge_model.edge_scores(graph, full, all_edges[edge_idx], edge_targets(graph, False)[edge_idx])
-    assert node_scores.shape[0] == graph.num_nodes()
-    assert attr_scores.shape[0] == graph.num_nodes()
-    assert edge_scores.shape[0] == edge_idx.numel()
+
+def test_graph_and_causality_encoders_do_not_share_parameters():
+    from apt_moe.models import CausalityExpert, GraphExpert
+
+    graph_model = GraphExpert(
+        node_type_dim=3,
+        edge_type_dim=4,
+        hidden_dim=8,
+        expert_dim=6,
+        num_layers=1,
+        num_heads=2,
+        dropout=0.0,
+    )
+    causal_model = CausalityExpert(
+        node_feat_dim=7,
+        edge_type_dim=4,
+        hidden_dim=8,
+        expert_dim=6,
+        num_layers=1,
+        num_heads=2,
+        dropout=0.0,
+        multilabel=True,
+    )
+    graph_param_ids = {id(param) for param in graph_model.encoder.parameters()}
+    causal_param_ids = {id(param) for param in causal_model.encoder.parameters()}
+    assert graph_param_ids
+    assert causal_param_ids
+    assert graph_param_ids.isdisjoint(causal_param_ids)

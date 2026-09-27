@@ -196,6 +196,13 @@ def edge_targets(graph: object, multilabel: bool) -> torch.Tensor:
     return labels.argmax(dim=1).long()
 
 
+def edge_type_features(graph: object, edge_type_dim: int) -> torch.Tensor:
+    labels = graph.edata["label"]
+    if labels.ndim == 1:
+        return F.one_hot(labels.long(), num_classes=int(edge_type_dim)).float()
+    return labels.float()
+
+
 def non_self_edge_mask(graph: object) -> torch.Tensor:
     src, dst = graph.edges()
     mask = src != dst
