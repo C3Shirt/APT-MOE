@@ -25,6 +25,7 @@ training:
   weight_decay: 0.0
   patience: 5
   mask_rate: 0.3
+  validation_train_graph_indices: [2, 5]
 
 evaluation:
   k_values: [100, 500, 1000]
@@ -33,7 +34,7 @@ evaluation:
 moe:
   alpha_entropy: 0.01
   beta_final: 1.0
-  eta_balance: 0.0
+  eta_balance: 0.02
   energy_ema_decay: 0.99
   energy_eps: 0.000001
   causal_smoothmax_tau: 5.0

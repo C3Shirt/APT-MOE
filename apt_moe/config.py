@@ -39,6 +39,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "weight_decay": 0.0,
         "patience": 5,
         "mask_rate": 0.3,
+        "validation_train_graph_indices": [],
         "lambda_cos": 0.5,
         "lambda_mse": 0.5,
     },

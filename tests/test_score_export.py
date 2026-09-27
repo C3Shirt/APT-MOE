@@ -2,7 +2,12 @@ import csv
 
 from apt_moe.evaluation.calibration import EmpiricalCDFCalibrator
 from apt_moe.evaluation.complementarity import complementarity_report
-from apt_moe.evaluation.export_scores import CSV_COLUMNS, apply_calibrators, export_scores_csv
+from apt_moe.evaluation.export_scores import (
+    CSV_COLUMNS,
+    apply_calibrators,
+    export_scores_csv,
+    threshold_calibration_source,
+)
 
 
 def test_score_export_schema(tmp_path):
@@ -76,3 +81,15 @@ def test_complementarity_report_contains_required_sections():
     assert "union_hits" in report
     assert "single_expert_examples" in report
     assert set(report["experts"]) == {"semantic", "graph", "normal", "causal"}
+
+
+def test_threshold_uses_all_benign_validation_graphs_and_ignores_test():
+    rows = [
+        {"graph_id": "val:0", "split": "val", "threshold_role": "validation", "label": 0, "fused_energy": 1.0},
+        {"graph_id": "train:2", "split": "train", "threshold_role": "validation", "label": 0, "fused_energy": 3.0},
+        {"graph_id": "train:5", "split": "train", "threshold_role": "validation", "label": 1, "fused_energy": 100.0},
+        {"graph_id": "test:0", "split": "test", "threshold_role": "test", "label": 0, "fused_energy": -100.0},
+    ]
+    candidates, source = threshold_calibration_source(rows)
+    assert [row["graph_id"] for row in candidates] == ["val:0", "train:2"]
+    assert source == "validation_benign_nodes_3_graphs"

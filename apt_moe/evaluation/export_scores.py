@@ -20,6 +20,7 @@ CSV_COLUMNS = [
     "dst_id",
     "timestamp",
     "split",
+    "threshold_role",
     "label",
     "semantic_raw",
     "graph_raw",
@@ -68,6 +69,9 @@ def score_dataset_node_level(
 ) -> Dict[str, List[Dict[str, object]]]:
     split_scores = {split: [] for split in dataset.all_splits()}
     folds = int(cfg.get("evaluation", {}).get("mask_folds", 8))
+    validation_train_indices = {
+        int(index) for index in cfg.get("training", {}).get("validation_train_graph_indices", [])
+    }
     with torch.no_grad():
         for split in dataset.all_splits():
             for batch in dataset.iter_split(split):
@@ -97,6 +101,12 @@ def score_dataset_node_level(
                         "dst_id": int(node_id),
                         "timestamp": "",
                         "split": split,
+                        "threshold_role": (
+                            "validation"
+                            if split == "val"
+                            or (split == "train" and batch.graph_index in validation_train_indices)
+                            else split
+                        ),
                         "label": int(labels[idx]) if labels is not None else "",
                         "semantic_raw": float(output.raw_energies[idx, 0].cpu()),
                         "graph_raw": float(output.raw_energies[idx, 1].cpu()),
@@ -132,15 +142,24 @@ def calibrate_threshold(
 
 
 def threshold_calibration_source(rows: List[Dict[str, object]]) -> tuple[List[Dict[str, object]], str]:
-    split = "val" if any(row.get("split") == "val" for row in rows) else "train"
-    candidates = [row for row in rows if row.get("split") == split]
+    candidates = [
+        row for row in rows
+        if row.get("threshold_role") == "validation" or row.get("split") == "val"
+    ]
+    source = "validation"
+    if not candidates:
+        candidates = [row for row in rows if row.get("split") == "train"]
+        source = "train_fallback"
+    if not candidates:
+        raise ValueError("No validation or training scores are available for threshold calibration.")
     labeled = [row for row in candidates if row.get("label") not in (None, "")]
+    graph_count = len({row.get("graph_id", row.get("sample_id")) for row in candidates})
     if labeled:
         candidates = [row for row in labeled if int(row["label"]) == 0]
         if not candidates:
-            raise ValueError(f"No benign nodes are available in the labeled {split} split for thresholding.")
-        return candidates, f"{split}_benign_nodes"
-    return candidates, f"{split}_unlabeled_assumed_benign"
+            raise ValueError(f"No benign nodes are available in the labeled {source} split for thresholding.")
+        return candidates, f"{source}_benign_nodes_{graph_count}_graphs"
+    return candidates, f"{source}_unlabeled_assumed_benign_{graph_count}_graphs"
 
 
 def apply_threshold(rows: List[Dict[str, object]], threshold: float) -> List[Dict[str, object]]:

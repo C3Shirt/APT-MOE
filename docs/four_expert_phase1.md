@@ -36,7 +36,11 @@ L = sum_k lambda_k L_k
 ```
 
 The entropy term is minimized to encourage sharp routing. The optional global
-load-balancing coefficient `eta` defaults to zero. The final one-class BCE
+load-balancing coefficient `eta` defaults to zero in the model; the full
+CADETS_E3 run sets it to 0.02 to prevent population-level expert collapse.
+Configured training-graph indices can be held out and combined with the
+official validation split; held-out graphs are excluded from optimizer updates
+and from the normal prototype. The final one-class BCE
 assumes the unlabeled training nodes are predominantly benign. Its training
 term is evaluated on nodes whose graph expert energy was produced by masking
 that node in the current step. Every component and the weighted total are

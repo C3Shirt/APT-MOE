@@ -18,10 +18,28 @@ LOSS_NAMES = ("semantic", "graph", "normal", "causal", "entropy", "balance", "fi
 
 def train_joint_moe(dataset, cfg: Dict[str, object], device: torch.device) -> Dict[str, object]:
     model = build_apt_moe(dataset, cfg).to(device)
-    model.set_normal_prototype(_training_normal_prototype(dataset).to(device))
     train_cfg = cfg["training"]
     moe_cfg = cfg.get("moe", {})
     out_cfg = cfg["output"]
+    all_train_batches = list(dataset.iter_split("train"))
+    validation_train_indices = sorted(
+        {int(index) for index in train_cfg.get("validation_train_graph_indices", [])}
+    )
+    train_batches = [
+        batch for batch in all_train_batches if batch.graph_index not in validation_train_indices
+    ]
+    if len(train_batches) == 0:
+        raise ValueError("At least one training graph must remain after reserving validation graphs.")
+    missing_indices = set(validation_train_indices) - {batch.graph_index for batch in all_train_batches}
+    if missing_indices:
+        raise ValueError(f"Validation graph indices are not present in the train split: {sorted(missing_indices)}")
+    heldout_batches = [
+        batch for batch in all_train_batches if batch.graph_index in validation_train_indices
+    ]
+    validation_batches = list(dataset.iter_split("val")) + heldout_batches
+    if not validation_batches:
+        validation_batches = train_batches
+    model.set_normal_prototype(_training_normal_prototype(train_batches).to(device))
     optimizer = torch.optim.Adam(
         model.parameters(),
         lr=float(train_cfg["lr"]),
@@ -31,7 +49,6 @@ def train_joint_moe(dataset, cfg: Dict[str, object], device: torch.device) -> Di
     patience = int(train_cfg["patience"])
     graph_mask_rate = float(train_cfg.get("mask_rate", 0.3))
     graph_folds = int(cfg.get("evaluation", {}).get("mask_folds", 8))
-    val_split = "val" if dataset.graphs.get("val") else "train"
     best_state = deepcopy(model.state_dict())
     best_val = float("inf")
     best_epoch = -1
@@ -42,7 +59,7 @@ def train_joint_moe(dataset, cfg: Dict[str, object], device: torch.device) -> Di
         started = time.time()
         model.train()
         train_metrics = {name: [] for name in LOSS_NAMES}
-        for batch in dataset.iter_split("train"):
+        for batch in train_batches:
             graph = batch.graph.to(device)
             features, edge_features, targets = _model_inputs(graph, dataset)
             mask = random_node_mask(graph.num_nodes(), graph_mask_rate, device)
@@ -62,7 +79,7 @@ def train_joint_moe(dataset, cfg: Dict[str, object], device: torch.device) -> Di
         model.eval()
         val_metrics = {name: [] for name in LOSS_NAMES}
         with torch.no_grad():
-            for batch in dataset.iter_split(val_split):
+            for batch in validation_batches:
                 graph = batch.graph.to(device)
                 features, edge_features, targets = _model_inputs(graph, dataset)
                 mask = _fixed_node_mask(graph.num_nodes(), graph_mask_rate, device, batch.graph_index)
@@ -114,7 +131,10 @@ def train_joint_moe(dataset, cfg: Dict[str, object], device: torch.device) -> Di
         "edge_is_multilabel": dataset.edge_is_multilabel,
         "training_mode": "end_to_end_joint_single_optimizer",
         "ground_truth_used_for_training": False,
-        "normal_prototype": "unlabeled_mean_of_all_training_nodes",
+        "normal_prototype": "unlabeled_mean_of_optimizer_training_nodes",
+        "training_graph_indices": [batch.graph_index for batch in train_batches],
+        "validation_train_graph_indices": validation_train_indices,
+        "validation_graph_count": len(validation_batches),
     }
     torch.save(
         {
@@ -134,6 +154,9 @@ def train_joint_moe(dataset, cfg: Dict[str, object], device: torch.device) -> Di
         "best_epoch": best_epoch,
         "history": history,
         "ground_truth_used_for_training": False,
+        "training_graph_indices": [batch.graph_index for batch in train_batches],
+        "validation_train_graph_indices": validation_train_indices,
+        "validation_graph_count": len(validation_batches),
     }
 
 
@@ -144,10 +167,10 @@ def _model_inputs(graph, dataset):
     return features, edge_features, targets
 
 
-def _training_normal_prototype(dataset: object) -> torch.Tensor:
+def _training_normal_prototype(train_batches) -> torch.Tensor:
     feature_sum = None
     num_nodes = 0
-    for batch in dataset.iter_split("train"):
+    for batch in train_batches:
         features = batch.graph.ndata["feat"].float()
         batch_sum = features.sum(dim=0, dtype=torch.float64)
         feature_sum = batch_sum if feature_sum is None else feature_sum + batch_sum
