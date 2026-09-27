@@ -8,7 +8,7 @@ from typing import Dict, List
 import numpy as np
 
 from ..models.apt_moe import EXPERT_NAMES
-from .metrics import binary_auc_metrics, jaccard, spearman, topk_ids, topk_metrics
+from .metrics import binary_auc_metrics, jaccard, spearman, topk_metrics
 
 
 def _expert_score_key(rows: List[Dict[str, object]], expert: str) -> str:
@@ -17,6 +17,12 @@ def _expert_score_key(rows: List[Dict[str, object]], expert: str) -> str:
         if rows and all(row.get(key) not in (None, "") for row in rows):
             return key
     raise KeyError(f"Rows do not contain a complete score column for expert {expert!r}.")
+
+
+def _sample_identity(row: Dict[str, object]) -> str:
+    sample_id = str(row["sample_id"])
+    graph_id = row.get("graph_id")
+    return f"{graph_id}:{sample_id}" if graph_id not in (None, "") else sample_id
 
 
 def _binary_threshold_metrics(labels: List[int], predictions: List[int]) -> Dict[str, object]:
@@ -43,7 +49,7 @@ def complementarity_report(rows: List[Dict[str, object]], k_values: List[int]) -
     ground_truth_available = bool(rows) and all(row.get("label") not in (None, "") for row in rows)
     labels = [int(row["label"]) for row in rows] if ground_truth_available else []
     malicious_ids = (
-        {int(row["sample_id"]) for row in rows if int(row["label"]) == 1}
+        {_sample_identity(row) for row in rows if int(row["label"]) == 1}
         if ground_truth_available
         else set()
     )
@@ -111,7 +117,17 @@ def complementarity_report(rows: List[Dict[str, object]], k_values: List[int]) -
     if score_keys:
         for k in k_values:
             kk = min(int(k), len(rows))
-            sets = {expert: topk_ids(rows, key, kk) for expert, key in score_keys.items()}
+            sets = {
+                expert: {
+                    _sample_identity(row)
+                    for row in sorted(
+                        rows,
+                        key=lambda row: float(row[score_keys[expert]]),
+                        reverse=True,
+                    )[:kk]
+                }
+                for expert in score_keys
+            }
             report["topk_overlap"][str(k)] = {
                 f"{left}_{right}": jaccard(sets[left], sets[right])
                 for left, right in combinations(score_keys, 2)
